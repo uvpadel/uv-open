@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UV Open</title>
+<style>
+:root{--sky1:#3a0f6e;--sky2:#000;--ink:#f4ecff;--blue:#a63cff;--sheet:#0c0614;--soft:#190d2b;--mut:#b9a6d9;--line:#3d1f6b;--ok:#5ee08f;color-scheme:dark;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden}
+body{font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:radial-gradient(ellipse at 50% 35%,var(--sky1),var(--sky2) 72%)}
+#app{position:relative;height:100%}
+#scene{position:absolute;inset:0}
+#scene canvas{display:block;touch-action:none}
+header{position:absolute;top:12px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}
+header b{font-size:22px;font-weight:900;letter-spacing:-.3px;text-shadow:0 0 14px #a63cff}
+header small{display:block;color:var(--mut);font-size:13px}
+#me{background:var(--sheet);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-weight:600;font-size:13px}
+#pins{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.pin{position:absolute;left:0;top:0;pointer-events:auto;background:var(--sheet);color:var(--ink);border:2px solid var(--blue);border-radius:999px;padding:8px 14px;font:700 14px system-ui,sans-serif;cursor:pointer;box-shadow:0 0 18px rgba(166,60,255,.75)}
+.pin:focus-visible,.btn:focus-visible,.btn2:focus-visible,#x:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+#sheet{position:absolute;left:0;right:0;bottom:0;margin:0 auto;max-width:560px;max-height:64%;overflow:auto;background:var(--sheet);border:1px solid var(--line);border-radius:22px 22px 0 0;padding:18px 20px 22px;transform:translateY(105%);transition:transform .3s}
+#sheet.open{transform:none}
+#x{position:absolute;top:10px;right:12px;border:0;background:var(--soft);color:var(--ink);width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer}
+h2{margin:0 40px 6px 0;font-size:22px}
+.m{color:var(--mut);margin:0 0 12px}
+form{display:grid;gap:10px}
+input,select{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--soft);color:var(--ink);font-size:16px}
+label{display:grid;gap:4px;font-size:13px;color:var(--mut)}
+.btn,.btn2{border:0;border-radius:999px;padding:12px 20px;font:700 15px system-ui,sans-serif;cursor:pointer}
+.btn{background:var(--blue);color:#fff;box-shadow:0 0 16px rgba(166,60,255,.7)}
+.btn2{background:var(--soft);color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px;background:var(--soft)}
+.card h3{margin:0;font-size:16px}
+.row{display:flex;gap:12px;align-items:center;justify-content:space-between}
+.bdg{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--blue);color:#fff;font-weight:800;font-size:13px;box-shadow:0 0 12px rgba(166,60,255,.8)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 4px;text-align:center;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--mut);font-weight:600}
+.d{display:flex;flex-wrap:wrap;gap:2px 14px;color:var(--mut);font-size:14px;margin-top:4px}
+.lock{color:var(--mut);margin:8px 0 0}.ok{color:var(--ok);font-weight:700;margin:8px 0 0}
+.bar{height:10px;border-radius:9px;background:var(--line);overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;background:var(--blue)}
+.lb{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.lb span:nth-child(2){flex:1}.lb.me{font-weight:800}
+ul{padding-left:18px;margin:6px 0 0}li{margin-bottom:6px}
+#hint{position:absolute;left:0;right:0;bottom:14px;text-align:center;color:var(--mut);font-size:13px;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="scene" role="img" aria-label="Interactive 3D padel court. Drag to rotate, pinch to zoom, tap a marker."></div>
+<header><div><b>UV Open</b><small>20–21 November, Cairo</small></div><div id="me">Guest</div></header>
+<div id="pins"></div>
+<div id="hint">Drag to rotate, pinch to zoom, tap a marker</div>
+<section id="sheet" aria-live="polite"><button id="x" aria-label="Close">✕</button><div id="body"></div></section>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* ---------- 3D scene ---------- */
+var box=document.getElementById('scene'),pinsEl=document.getElementById('pins');
+var renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputEncoding=THREE.sRGBEncoding;
+box.appendChild(renderer.domElement);
+var scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(42,1,.1,200);
+cam.position.set(15,13,19);
+scene.add(new THREE.HemisphereLight(0xd2b8ff,0x1a0533,.85));[[-7,5,0xa63cff],[7,5,0xff2bd6]].forEach(function(l){var pl=new THREE.PointLight(l[2],1.6,34);pl.position.set(l[0],l[1],0);scene.add(pl)});
+var sun=new THREE.DirectionalLight(0xffffff,.8);sun.position.set(8,18,6);scene.add(sun);
+function std(c,o){return new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.8},o||{}))}
+/* black glossy ground + purple halo */
+var ground=new THREE.Mesh(new THREE.CircleGeometry(40,64),new THREE.MeshStandardMaterial({color:0x07030d,roughness:.3,metalness:.6}));
+ground.rotation.x=-Math.PI/2;ground.position.y=-.2;scene.add(ground);
+var hc=document.createElement('canvas');hc.width=hc.height=128;var hg=hc.getContext('2d'),gr=hg.createRadialGradient(64,64,0,64,64,64);
+gr.addColorStop(0,'rgba(190,80,255,.9)');gr.addColorStop(.5,'rgba(120,30,200,.35)');gr.addColorStop(1,'rgba(0,0,0,0)');hg.fillStyle=gr;hg.fillRect(0,0,128,128);
+var halo=new THREE.Mesh(new THREE.PlaneGeometry(46,46),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(hc),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+halo.rotation.x=-Math.PI/2;halo.position.y=-.18;scene.add(halo);
+var court=new THREE.Group();scene.add(court);
+function bx(w,h,d,x,y,z,m,p){var o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);(p||court).add(o);return o}
+bx(14,.1,24,0,-.14,0,std(0x0f0824));            /* apron */
+bx(10,.1,20,0,-.05,0,std(0x2c5ff0,{roughness:.55})); /* blue court */
+var white=new THREE.MeshBasicMaterial({color:0xffffff});
+[-10,10].forEach(function(z){bx(10,.01,.08,0,.006,z,white);bx(10,.01,.08,0,.006,z*.695,white);bx(.08,.01,6.95,0,.006,z*.3475,white)});
+[-5,5].forEach(function(x){bx(.08,.01,20,x,.006,0,white)});
+/* net */
+function mt(rx,ry,col,op){var c=document.createElement('canvas');c.width=c.height=16;var x=c.getContext('2d');x.strokeStyle=col;x.lineWidth=2;x.strokeRect(0,0,16,16);var t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);return new THREE.MeshBasicMaterial({map:t,transparent:true,opacity:op,side:THREE.DoubleSide,depthWrite:false,alphaTest:.05})}
+var net=new THREE.Mesh(new THREE.PlaneGeometry(10,.8),mt(50,4,'#0b1233',.9));net.position.y=.5;court.add(net);
+bx(10,.07,.04,0,.92,0,white);bx(10,.02,.02,0,.1,0,white);
+[-5.1,5.1].forEach(function(x){var p=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,1.05,14),std(0x9aa3b8,{metalness:.5}));p.position.set(x,.5,0);court.add(p)});
+/* rules banner hung on the net, readable from both sides */
+var bc=document.createElement('canvas');bc.width=2048;bc.height=320;var q=bc.getContext('2d');
+q.fillStyle='#fff';q.fillRect(0,0,2048,320);q.fillStyle='#d62839';q.fillRect(0,0,2048,22);
+q.fillStyle='#0f2a8a';q.font='bold 58px system-ui,sans-serif';q.fillText('Match rules',40,92);
+[['Fighting','Both players disqualified and banned'],['Wrong level','Disqualified, even if qualified'],['15 minutes late','The match is forfeited']].forEach(function(r,i){var x=40+i*670;
+  q.fillStyle='#d62839';q.font='bold 52px system-ui,sans-serif';q.fillText(r[0],x,190);q.fillStyle='#0f2a8a';q.font='34px system-ui,sans-serif';q.fillText(r[1],x,250)});
+var bt=new THREE.CanvasTexture(bc);bt.encoding=THREE.sRGBEncoding;bt.anisotropy=4;
+[1,-1].forEach(function(k){var b=new THREE.Mesh(new THREE.PlaneGeometry(5,.78),new THREE.MeshBasicMaterial({map:bt}));b.position.set(0,.5,.03*k);b.rotation.y=k>0?0:Math.PI;court.add(b)});
+/* walls: glass panels + steel frame + wire mesh above */
+var gm=new THREE.MeshStandardMaterial({color:0xc9a8ff,transparent:true,opacity:.16,roughness:.1,depthWrite:false}),
+    em=new THREE.LineBasicMaterial({color:0xe6ccff}),steel=std(0x6b7280,{metalness:.6,roughness:.4});
+function glass(w,x,z,ry){var m=bx(w,3,.05,x,1.5,z,gm);m.rotation.y=ry||0;m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry),em))}
+function wire(w,h,x,y,z,ry){var m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),mt(w*5,h*5,'#3b4256',.8));m.position.set(x,y,z);m.rotation.y=ry||0;court.add(m)}
+[-4,-2,0,2,4].forEach(function(x){glass(2,x,10);glass(2,x,-10)});
+[-1,1].forEach(function(sx){[-9,-7,7,9].forEach(function(z){glass(2,5*sx,z,Math.PI/2)})});
+wire(10,1,0,3.5,10);wire(10,1,0,3.5,-10);
+[-1,1].forEach(function(sx){wire(4,1,5*sx,3.5,8,Math.PI/2);wire(4,1,5*sx,3.5,-8,Math.PI/2);wire(12,3,5*sx,1.5,0,Math.PI/2);wire(12,1,5*sx,3.5,0,Math.PI/2)});
+[-5,5].forEach(function(x){[-10,-6,6,10].forEach(function(z){bx(.12,4,.12,x,2,z,steel)});bx(.06,.06,20,x,4,0,steel)});
+[-10,10].forEach(function(z){bx(10,.06,.06,0,4,z,steel);[-3,-1,1,3].forEach(function(x){bx(.08,4,.08,x,2,z,steel)})});
+/* floodlights */
+[[-8,-8],[8,-8],[-8,8],[8,8]].forEach(function(f){var po=new THREE.Mesh(new THREE.CylinderGeometry(.08,.1,6.5,10),steel);po.position.set(f[0],3.1,f[1]);court.add(po);
+  var hd=bx(.9,.2,.5,f[0]*.95,6.4,f[1],new THREE.MeshStandardMaterial({color:0xe9c8ff,emissive:0xc060ff,emissiveIntensity:.9}));hd.lookAt(0,0,0)});
+/* referee chair */
+bx(.7,.08,.7,-6.2,1.9,0,std(0x1c2b5e));bx(.7,.7,.08,-6.55,2.3,0,std(0x1c2b5e));
+[[-.3,-.3],[-.3,.3],[.3,-.3],[.3,.3]].forEach(function(o){var l=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,1.9,8),steel);l.position.set(-6.2+o[0],.95,o[1]);court.add(l)});
+/* neon frame, light beams, sparks */
+var neon=new THREE.MeshBasicMaterial({color:0xb84dff});
+[-12.1,12.1].forEach(function(z){bx(14.4,.06,.12,0,-.1,z,neon,scene)});[-7.1,7.1].forEach(function(x){bx(.12,.06,24.4,x,-.1,0,neon,scene)});
+[-5,5].forEach(function(x){bx(.08,.08,20,x,4.1,0,neon);[-10,10].forEach(function(z){bx(.08,4,.08,x*1.02,2,z*1.01,neon)})});[-10,10].forEach(function(z){bx(10,.08,.08,0,4.1,z,neon)});
+var beams=[];for(var i=0;i<14;i++){var an=i/14*Math.PI*2,bm=new THREE.Mesh(new THREE.CylinderGeometry(.12,.35,34,10,1,true),new THREE.MeshBasicMaterial({color:i%2?0xb84dff:0xff2bd6,transparent:true,opacity:.35,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));bm.position.set(Math.cos(an)*22,15,Math.sin(an)*22);scene.add(bm);beams.push(bm)}
+var NP=160,pp=new Float32Array(NP*3);for(var i=0;i<NP;i++){pp[i*3]=(Math.random()-.5)*50;pp[i*3+1]=Math.random()*14;pp[i*3+2]=(Math.random()-.5)*50}
+var pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
+var sparks=new THREE.Points(pg,new THREE.PointsMaterial({color:0xe0b3ff,size:.12,transparent:true,opacity:.8,depthWrite:false}));scene.add(sparks);
+/* floor rings = marker spots */
+var spots=[['account','👤 Account',-3,6],['rank','🏅 Ranking',3,6],['tour','🏆 Tournaments',-3,-6],['how','📋 How it works',3,-6],['rules','⚠️ Rules',0,0,1.05]],pins=[];
+spots.forEach(function(s){
+  var r=new THREE.Mesh(new THREE.RingGeometry(.55,.7,40),new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide}));
+  r.rotation.x=-Math.PI/2;r.position.set(s[2],.02,s[3]);if(!s[4])court.add(r);
+  var b=document.createElement('button');b.className='pin';b.textContent=s[1];b.onclick=function(){openSheet(s[0])};pinsEl.appendChild(b);
+  pins.push({el:b,pos:new THREE.Vector3(s[2],s[4]||1.3,s[3])});
+});
+var ball=new THREE.Mesh(new THREE.SphereGeometry(.14,20,20),std(0xdcf24a,{roughness:.5,emissive:0x9bb800,emissiveIntensity:.6}));scene.add(ball);
+var ctl=new THREE.OrbitControls(cam,renderer.domElement);
+ctl.enablePan=false;ctl.enableDamping=true;ctl.minDistance=14;ctl.maxDistance=42;ctl.maxPolarAngle=1.4;
+var reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+ctl.autoRotate=!reduce;ctl.autoRotateSpeed=.7;
+ctl.addEventListener('start',function(){ctl.autoRotate=false;document.getElementById('hint').style.display='none'});
+var W=1,H=1,v=new THREE.Vector3();
+function size(){W=box.clientWidth;H=box.clientHeight;renderer.setSize(W,H);cam.aspect=W/H;cam.updateProjectionMatrix()}
+addEventListener('resize',size);size();
+(function loop(t){
+  requestAnimationFrame(loop);t/=1000;
+  if(!reduce){beams.forEach(function(b,i){b.material.opacity=.15+.3*Math.abs(Math.sin(t*1.5+i))});neon.color.setHSL(.77+.03*Math.sin(t*2),1,.6);sparks.rotation.y=t*.03}
+  if(!reduce){ball.position.set(Math.sin(t*.7)*3,1.2+Math.abs(Math.sin(t*2.1))*1.1,Math.cos(t*.7)*5)}else ball.position.set(0,1.4,2);
+  ctl.update();renderer.render(scene,cam);
+  pins.forEach(function(p){v.copy(p.pos).project(cam);
+    p.el.style.transform='translate('+((v.x*.5+.5)*W)+'px,'+((-v.y*.5+.5)*H)+'px) translate(-50%,-100%)';
+    p.el.style.display=v.z<1?'':'none'});
+})(0);
+
+/* ---------- players, levels, tournaments ---------- */
+var NAMES=['Beginner','Low D','D','Low C','C'],LV={'Beginner':0,'Low D':100,'D':200,'Low C':300,'C':400},AB={'Beginner':'B','Low D':'LD','D':'D','Low C':'LC','C':'C'};
+var PAY='0100 000 0000';
+function rk(p){return p<100?'Beginner':p<200?'Low D':p<300?'D':p<400?'Low C':'C'}
+function nx(r){return NAMES[NAMES.indexOf(r)+1]}
+function eg(n){return n.toLocaleString('en-US')}
+function tot(t){return t.g.reduce(function(a,b){return a+b},0)}
+function pt(){return '<h3 style="margin:16px 0 4px">Points per stage</h3><p class="m" style="margin:0 0 6px">Points you earn for each stage you win in a tournament.</p><table><tr><th>Level</th><th>Group</th><th>Quarter</th><th>Semi</th><th>Final</th><th>Total</th></tr>'+T.map(function(t){return '<tr><td>'+t.c+'</td>'+t.g.map(function(x){return '<td>'+x+'</td>'}).join('')+'<td><b>'+tot(t)+'</b></td></tr>'}).join('')+'</table>'}
+function pc(t){var n=['Group stage win','Quarter-final win','Semi-final win','Final win'];return '<div class="card"><h3>Points you can earn</h3>'+t.g.map(function(x,i){return '<div class="lb"><span>'+n[i]+'</span><span></span><span>+'+x+'</span></div>'}).join('')+'<p class="m" style="margin:8px 0 0">Win every stage for '+tot(t)+' points.</p></div>'}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function load(k){try{return JSON.parse(localStorage.getItem('padel_'+k))}catch(e){return null}}
+function save(){try{localStorage.setItem('padel_u',JSON.stringify(u));localStorage.setItem('padel_r',JSON.stringify(reg))}catch(e){}}
+var u=load('u'),reg=load('r')||{},view='account',cur='',note='';
+var T=[{c:'Beginner',n:'UV Open · Beginners Cup',d:'Fri 20 Nov, 10 am',s:9,f:700,p1:7000,p2:3000,g:[4,6,8,12]},{c:'Low D',n:'UV Open · Low D Cup',d:'Fri 20 Nov, 3 pm',s:12,f:900,p1:9000,p2:4000,g:[5,8,11,16]},{c:'D',n:'UV Open · D Cup',d:'Sat 21 Nov, 10 am',s:7,f:1100,p1:11000,p2:5000,g:[7,10,13,20]},{c:'Low C',n:'UV Open · Low C Cup',d:'Sat 21 Nov, 2 pm',s:11,f:1300,p1:13000,p2:6000,g:[8,12,16,24]},{c:'C',n:'UV Open · C Cup',d:'Sat 21 Nov, 6 pm',s:5,f:1500,p1:15000,p2:7000,g:[9,14,19,28]}];
+var LB=[['Omar K.',460],['Youssef M.',410],['Salma A.',355],['Karim H.',320],['Nour S.',240],['Hany R.',170],['Dina F.',120],['Ali T.',40]];
+function badge(l){return '<span class="bdg">'+AB[l]+'</span>'}
+function head(){document.getElementById('me').textContent=u?u.n+', '+rk(u.pts):'Guest'}
+function info(t){return '<div class="d"><span>📅 '+t.d+'</span><span>👥 '+t.s+' registered, min. 16 teams</span><span>💳 EGP '+eg(t.f*2)+' per team</span><span>🥇 EGP '+eg(t.p1)+'</span><span>🥈 EGP '+eg(t.p2)+'</span><span>⭐ Up to '+tot(t)+' points</span></div>'}
+var V={
+account:function(){
+  if(!u)return '<h2>Create your account</h2><p class="m">One account per player. Your level follows you into every tournament.</p>'+
+  '<form id="fm"><input name="n" placeholder="Full name" required autocomplete="name"><input name="p" type="tel" placeholder="Phone number" required autocomplete="tel">'+
+  '<label>Your level<select name="l">'+NAMES.map(function(n){return '<option>'+n+'</option>'}).join('')+'</select></label>'+
+  '<button class="btn">Create account</button></form><p class="m" style="margin-top:10px">Organizers confirm your level after your first matches.</p>';
+  var r=rk(u.pts);return '<h2>'+esc(u.n)+'</h2><div class="card row"><div><h3>Level: '+r+'</h3><span class="m">'+u.pts+' points</span></div>'+badge(r)+'</div><button class="btn2" data-a="out">Log out</button>'},
+rank:function(){
+  var s='<h2>Ranking</h2>';
+  if(u){var r=rk(u.pts),pc=r=='C'?100:u.pts-LV[r];
+    s+='<div class="card"><div class="row"><h3>Your level: '+r+'</h3>'+badge(r)+'</div><div class="bar"><i style="width:'+pc+'%"></i></div><span class="m">'+u.pts+' points. '+(r=='C'?'Top level reached.':(LV[nx(r)]-u.pts)+' more to reach '+nx(r)+'.')+'</span></div>'+(note?'<p class="ok">'+note+'</p>':'')+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn2" data-a="pts" data-v="10">Demo: win a match (+10)</button><button class="btn2" data-a="pts" data-v="'+tot(T[NAMES.indexOf(r)])+'">Demo: win a tournament (+'+tot(T[NAMES.indexOf(r)])+')</button></div>'}
+  else s+='<p class="m">Create an account to see your own level.</p>';
+  var L=LB.map(function(x){return{n:x[0],p:x[1]}});if(u)L.push({n:u.n,p:u.pts,me:1});L.sort(function(a,b){return b.p-a.p});
+  return s+pt()+'<h3 style="margin:16px 0 4px">Leaderboard</h3>'+L.map(function(x,i){return '<div class="lb'+(x.me?' me':'')+'"><span>'+(i+1)+'</span><span>'+esc(x.n)+'</span><span>'+x.p+'</span>'+badge(rk(x.p))+'</div>'}).join('')},
+rules:function(){return '<h2>Match rules</h2><p class="m">These are posted on the net and apply to every player.</p>'+
+  [['🥊','Fighting or abuse','Both players are disqualified and banned immediately. No warnings.'],['🎯','Wrong level','Anyone who qualifies in a tournament outside their level is disqualified.'],['⏱️','Late arrival','15 minutes late means the match is forfeited.'],['🧾','Fake details','A fake account or a wrong level on purpose means a ban.'],['🧑‍⚖️','Referee','The referee’s decision is final. Arguing leads to a warning, then disqualification.']].map(function(r){return '<div class="card"><h3>'+r[0]+' '+r[1]+'</h3><p class="m" style="margin:4px 0 0">'+r[2]+'</p></div>'}).join('')},
+tour:function(){
+  return '<h2>Tournaments</h2><p class="m">Each tournament is only for its own level. Higher levels pay a higher entry and win bigger prizes.</p>'+T.map(function(t){var a;
+    if(!u)a='<button class="btn2" data-a="acc">Create an account to join</button>';
+    else if(rk(u.pts)!==t.c)a='<p class="lock">🔒 '+t.c+' players only. Your level is '+rk(u.pts)+'.</p>';
+    else if(reg[t.c])a='<p class="ok">✅ Your team is registered</p>';
+    else a='<button class="btn" data-a="open" data-c="'+t.c+'">Open and register</button>';
+    return '<div class="card"><div class="row"><h3>'+t.n+'</h3>'+badge(t.c)+'</div>'+info(t)+'<div style="margin-top:10px">'+a+'</div></div>'}).join('')},
+det:function(){
+  var t=T.filter(function(x){return x.c==cur})[0],r=reg[cur],b='<button class="btn2" data-a="back">Back</button><h2 style="margin-top:12px">'+t.n+'</h2>'+info(t);
+  if(r)return b+'<div class="card"><h3>✅ Registered</h3><p class="m" style="margin:4px 0 0">'+esc(r.a)+' and '+esc(r.b)+'<br>Screenshot: '+esc(r.f)+'<br>The organizers confirm your spot after checking the payment.</p></div>';
+  return b+pc(t)+'<div class="card"><h3>1. Pay the entry fee</h3><p class="m" style="margin:4px 0 0">Send EGP '+eg(t.f*2)+' ('+eg(t.f)+' per player) by InstaPay to <b>'+PAY+'</b>. Then take a screenshot of the payment.</p></div>'+
+  '<div class="card"><h3>2. Register your team</h3><form id="rf" style="margin-top:8px"><label>Player 1<input name="a" value="'+esc(u.n)+'" required></label><label>Player 2<input name="b" placeholder="Partner’s full name" required></label><label>Payment screenshot<input name="f" type="file" accept="image/*" required></label><button class="btn">Send registration</button></form></div>'},
+how:function(){
+  return '<h2>How it works</h2><ul><li>Sign up once with your phone number and pick your level.</li><li>Levels by points: Beginner 0–99, Low D 100–199, D 200–299, Low C 300–399, C 400+.</li><li>In a tournament you earn points at every stage you win. The full table is in Ranking.</li><li>You move up automatically at the next point mark.</li><li>Each tournament is only for its own level, so beginners never face stronger players.</li><li>Every tournament needs at least 16 teams. First and second place prizes grow with the level too.</li></ul>'}
+};
+var sh=document.getElementById('sheet'),bd=document.getElementById('body');
+function openSheet(v){view=v;note='';draw();sh.classList.add('open');ctl.autoRotate=false}
+function draw(){bd.innerHTML=V[view]();head()}
+document.getElementById('x').onclick=function(){sh.classList.remove('open')};
+bd.addEventListener('click',function(e){var a=e.target.getAttribute('data-a');if(!a)return;
+  if(a=='out'){u=null;reg={};save();view='account'}
+  if(a=='acc')view='account';
+  if(a=='open'){cur=e.target.getAttribute('data-c');view='det';sh.scrollTop=0}
+  if(a=='back'){view='tour';sh.scrollTop=0}
+  if(a=='pts'){var o=rk(u.pts),n=+e.target.getAttribute('data-v');u.pts+=n;save();note=rk(u.pts)!=o?'Promoted to '+rk(u.pts)+'. The '+rk(u.pts)+' tournament is now yours.':'+'+n+' points.'}
+  draw()});
+bd.addEventListener('submit',function(e){e.preventDefault();var f=new FormData(e.target);
+  if(e.target.id=='fm'){u={n:f.get('n').trim(),ph:f.get('p'),pts:LV[f.get('l')]};save();view='tour'}
+  else{reg[cur]={a:f.get('a').trim(),b:f.get('b').trim(),f:f.get('f').name};save()}
+  draw()});
+head();
+</script>
+</body></html>
